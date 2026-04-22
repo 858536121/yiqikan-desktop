@@ -24,6 +24,7 @@
     "dist": "pnpm --filter @yiqikan/desktop dist",
     "dist:mac": "pnpm --filter @yiqikan/desktop dist:mac",
     "dist:win": "pnpm --filter @yiqikan/desktop dist:win",
+    "publish:desktop": "bash scripts/publish-desktop.sh",
     "dist:linux": "pnpm --filter @yiqikan/desktop dist:linux",
     "lint": "pnpm -r lint",
     "test:server": "pnpm --filter @yiqikan/server test",
