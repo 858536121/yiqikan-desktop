@@ -28,7 +28,6 @@ jobs:
       - name: Build & package (macOS)
         run: pnpm --filter @yiqikan/desktop dist:mac
         env:
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
           GH_TOKEN: ""
 
       - name: Create Release
@@ -67,8 +66,6 @@ jobs:
       - name: Build & package (Windows)
         run: pnpm --filter @yiqikan/desktop dist:win
         env:
-          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
-          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
           GH_TOKEN: ""
 
       - name: Create Release
