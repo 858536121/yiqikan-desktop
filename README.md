@@ -1,2 +1,0 @@
-# yiqikan-desktop
-yiqikan-desktop
