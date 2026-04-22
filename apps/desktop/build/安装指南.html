@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>异起看 — 安装指南</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #f2f2f7;
+    color: #1c1c1e;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px 32px 24px;
+    width: 100%;
+    max-width: 600px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07), 0 0 0 1px rgba(0,0,0,.04);
+  }
+
+  /* ── Card header ── */
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f2f2f7;
+  }
+  .card-header h1 {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .card-header p {
+    font-size: 12px;
+    color: #8e8e93;
+    margin-top: 2px;
+  }
+  .shield {
+    width: 36px;
+    height: 36px;
+    background: #e6f9ec;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ── Methods ── */
+  .method {
+    padding: 16px 0;
+    border-bottom: 1px solid #f2f2f7;
+  }
+  .method:last-child { border-bottom: none; padding-bottom: 0; }
+  .method:first-of-type { padding-top: 0; }
+
+  .method-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #007aff;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .method-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .tag {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    color: #34c759;
+    background: #e6f9ec;
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+
+  /* Steps */
+  .steps {
+    padding-left: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .steps li {
+    font-size: 13.5px;
+    color: #3a3a3c;
+    line-height: 1.6;
+    list-style: none;
+    position: relative;
+    padding-left: 14px;
+  }
+  .steps li::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 8px;
+    width: 5px;
+    height: 5px;
+    background: #c7c7cc;
+    border-radius: 50%;
+  }
+  .steps li strong { color: #1c1c1e; font-weight: 600; }
+  .steps li .key {
+    display: inline-block;
+    background: #f2f2f7;
+    border-radius: 5px;
+    padding: 0 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #1c1c1e;
+    border: 1px solid #d1d1d6;
+  }
+
+  /* Code */
+  .code-wrap { padding-left: 32px; margin-top: 8px; }
+  .code-block {
+    background: #1c1c1e;
+    border-radius: 10px;
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .code-block code {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    color: #e5e5ea;
+    flex: 1;
+    white-space: nowrap;
+  }
+  .copy-btn {
+    flex-shrink: 0;
+    width: 64px;
+    background: #3a3a3c;
+    color: #e5e5ea;
+    border: none;
+    border-radius: 7px;
+    padding: 5px 0;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    font-family: inherit;
+    text-align: center;
+  }
+  .copy-btn:hover  { background: #48484a; }
+  .copy-btn.copied { background: #1a7f37; color: #fff; }
+
+  /* Footer */
+  .footer {
+    margin-top: 14px;
+    font-size: 12px;
+    color: #aeaeb2;
+    text-align: center;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <div class="shield">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M10 2L3.5 5v5c0 4 2.8 7 6.5 8 3.7-1 6.5-4 6.5-8V5L10 2z" fill="#34c759" opacity=".9"/>
+        <path d="M7 10l2.2 2.2L13 8" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <h1>首次打开提示「无法验证」？</h1>
+      <p>这是 macOS 的正常安全检查，按下方步骤操作即可。</p>
+    </div>
+  </div>
+
+  <!-- Method 1 -->
+  <div class="method">
+    <div class="method-header">
+      <div class="num">1</div>
+      <span class="method-title">系统设置放行（推荐）</span>
+      <span class="tag">无需命令行</span>
+    </div>
+    <ul class="steps">
+      <li>将 <strong>异起看.app</strong> 拖入「应用程序」文件夹</li>
+      <li>双击打开，被拦截后关闭弹窗</li>
+      <li>打开 <span class="key">系统设置</span> → <span class="key">隐私与安全性</span> → 滚到底部</li>
+      <li>点击「<strong>仍要打开</strong>」，再次确认即可</li>
+    </ul>
+  </div>
+
+  <!-- Method 2 -->
+  <div class="method">
+    <div class="method-header">
+      <div class="num">2</div>
+      <span class="method-title">终端命令一步解决</span>
+    </div>
+    <ul class="steps">
+      <li>将 <strong>异起看.app</strong> 拖入「应用程序」文件夹</li>
+      <li>打开「终端」，粘贴下方命令并回车</li>
+    </ul>
+    <div class="code-wrap">
+      <div class="code-block">
+        <code id="cmd">xattr -dr com.apple.quarantine /Applications/异起看.app</code>
+        <button class="copy-btn" onclick="copyCmd()">复制</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  macOS 会对所有从互联网下载的应用进行安全检查。<br>异起看尚未完成 Apple 公证，以上操作可安全解除该限制。
+</div>
+
+<script>
+function copyCmd() {
+  const text = document.getElementById('cmd').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '已复制 ✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>
