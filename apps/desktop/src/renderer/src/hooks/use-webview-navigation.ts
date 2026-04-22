@@ -48,8 +48,15 @@ export function useWebviewNavigation({
   const normalizeUrl = useCallback((value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return "";
+    // Resolve protocol-relative URLs (e.g. //search.bilibili.com/...)
+    if (trimmed.startsWith("//")) return `https:${trimmed}`;
+    // Already has a protocol (http://, ftp://, etc.)
     if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed)) return trimmed;
-    return `https://${trimmed}`;
+    // Looks like a domain: contains a dot and no spaces, e.g. "bilibili.com" or "192.168.1.1"
+    const looksLikeDomain = /^[^\s]+\.[^\s]+$/.test(trimmed);
+    if (looksLikeDomain) return `https://${trimmed}`;
+    // Otherwise treat as a search query
+    return `https://www.baidu.com/s?wd=${encodeURIComponent(trimmed)}`;
   }, []);
 
   const persistLastViewedUrl = useCallback((nextUrl: string | null | undefined) => {

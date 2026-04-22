@@ -201,7 +201,8 @@ const subframeInjectionScript = `
     postToAncestor({ source: "yiqikan-member-blocked" });
   }, true);
 
-  // Popup interception
+  // Popup interception — anchor clicks with _blank target
+  // window.open is handled by Electron's setWindowOpenHandler / did-create-window in the main process
   try {
     document.addEventListener("click", function(event) {
       if (event.defaultPrevented || event.button !== 0) return;
@@ -211,18 +212,8 @@ const subframeInjectionScript = `
       var rel = anchor.rel || "";
       var blankLike = anchor.target === "_blank" || rel.indexOf("noopener") !== -1 || rel.indexOf("noreferrer") !== -1;
       if (!anchor.href || !blankLike) return;
-      event.preventDefault(); event.stopPropagation();
-      postToAncestor({ source: MSG_SOURCE_OPEN_URL, payload: { url: anchor.href, source: "anchor-click", target: anchor.target || null } });
+      // Let the browser handle it — Electron will intercept via did-create-window
     }, true);
-    var nativeOpen = window.open.bind(window);
-    window.open = function(url, target, features) {
-      var nextUrl = typeof url === "string" ? url : (url && url.toString ? url.toString() : "");
-      if (nextUrl && nextUrl.indexOf("about:blank") !== 0) {
-        postToAncestor({ source: MSG_SOURCE_OPEN_URL, payload: { url: nextUrl, source: "window.open", target: target || null } });
-        return null;
-      }
-      return nativeOpen(url, target, features);
-    };
   } catch(e) {}
 
   try {
@@ -343,7 +334,9 @@ function createWindow() {
   });
   currentMainWindow = mainWindow;
 
-  mainWindow.once("ready-to-show", () => {
+  // Show window as soon as the HTML is parsed — the inline loading screen
+  // provides immediate visual feedback while React finishes mounting.
+  mainWindow.webContents.once("did-finish-load", () => {
     mainWindow.show();
   });
 
@@ -380,15 +373,37 @@ function createWindow() {
     if (process.env.ELECTRON_RENDERER_URL) setInspectorGuest?.(guestWebContents);
 
     guestWebContents.setWindowOpenHandler((details) => {
-      if (details.url && !details.url.startsWith("about:blank")) {
+      const url = details.url;
+      if (!url || url.startsWith("about:blank") || url.startsWith("javascript:")) {
+        return { action: "deny" };
+      }
+      // Resolve protocol-relative URLs (e.g. //search.bilibili.com/...)
+      const resolvedUrl = url.startsWith("//") ? `https:${url}` : url;
+      if (!isSafeWebviewUrl(resolvedUrl)) {
+        return { action: "deny" };
+      }
+      // Allow the window to be created so we get a real WindowProxy back to the page,
+      // then immediately close it and redirect the current webview to the new URL.
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          show: false, // never show the popup window
+        },
+      };
+    });
+
+    guestWebContents.on("did-create-window", (childWindow, details) => {
+      const url = details.url;
+      const resolvedUrl = url?.startsWith("//") ? `https:${url}` : url;
+      // Close the popup immediately and navigate the main webview instead
+      childWindow.destroy();
+      if (resolvedUrl && !resolvedUrl.startsWith("about:blank")) {
         mainWindow.webContents.send("yiqikan:webview-window-open", {
-          url: details.url,
+          url: resolvedUrl,
           frameName: details.frameName,
           disposition: details.disposition,
-          referrer: details.referrer?.url,
         });
       }
-      return { action: "deny" };
     });
 
     guestWebContents.on("will-navigate", (event, url) => {

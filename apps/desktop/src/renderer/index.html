@@ -8,8 +8,46 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>异起看</title>
+    <style>
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #111113;
+        z-index: 9999;
+        gap: 20px;
+        font-family: "PingFang SC", "Noto Sans SC", system-ui, -apple-system, sans-serif;
+      }
+      #app-loading .logo {
+        font-size: 28px;
+        font-weight: 700;
+        color: #fafafa;
+        letter-spacing: 0.05em;
+      }
+      #app-loading .logo span {
+        color: #f97316;
+      }
+      #app-loading .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid rgba(255,255,255,0.1);
+        border-top-color: #f97316;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
   </head>
   <body>
+    <div id="app-loading">
+      <div class="logo">异<span>起</span>看</div>
+      <div class="spinner"></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="./src/main.tsx"></script>
   </body>

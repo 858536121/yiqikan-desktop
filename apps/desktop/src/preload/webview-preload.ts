@@ -20,7 +20,6 @@ const IS_TOP = window.self === window.top;
 const VIDEO_TAGS = ["video", "bwp-video"];
 const MSG_SOURCE_CHILD = "yiqikan-child-video";
 const MSG_SOURCE_SYNC = "yiqikan-sync-cmd";
-const MSG_SOURCE_OPEN_URL = "yiqikan-open-url";
 const MSG_SOURCE_FULLSCREEN = "yiqikan-fullscreen-change";
 const MSG_SOURCE_EXIT_FULLSCREEN = "yiqikan-exit-fullscreen";
 const MSG_SOURCE_HOST_MODE_REQUEST = "yiqikan-request-host-mode";
@@ -42,17 +41,6 @@ const AUTHORITATIVE_SYNC_EVENT_WINDOW_MS = 5000;
 /*  Popup interception                                                  */
 /* ------------------------------------------------------------------ */
 
-function forwardOpenUrl(payload: { url: string; source: string; target?: string | null }): void {
-  if (!payload.url || payload.url.startsWith("about:blank") || payload.url.startsWith("javascript:")) return;
-  // Only forward genuine popup windows (target="_blank" or window.open with explicit target)
-  // Don't forward same-page navigations that sites use internally
-  if (payload.source === "window.open" && (!payload.target || payload.target === "_self" || payload.target === "_top" || payload.target === "_parent")) return;
-  if (IS_TOP) { ipcRenderer.sendToHost("yiqikan:open-url", payload); return; }
-  try { window.top!.postMessage({ source: MSG_SOURCE_OPEN_URL, payload }, "*"); } catch {
-    try { window.parent.postMessage({ source: MSG_SOURCE_OPEN_URL, payload }, "*"); } catch { /* ignore */ }
-  }
-}
-
 function handlePotentialBlankClick(event: MouseEvent): void {
   if (event.defaultPrevented || event.button !== 0) return;
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -60,25 +48,9 @@ function handlePotentialBlankClick(event: MouseEvent): void {
   if (!anchor) return;
   const blankLike = anchor.target === "_blank" || anchor.rel.includes("noopener") || anchor.rel.includes("noreferrer");
   if (!anchor.href || !blankLike) return;
-  event.preventDefault();
-  event.stopPropagation();
-  forwardOpenUrl({ url: anchor.href, source: "anchor-click", target: anchor.target });
+  // Don't intercept — let Electron's setWindowOpenHandler / did-create-window handle it in the main process
 }
 try { document.addEventListener("click", handlePotentialBlankClick, true); } catch { /* ignore */ }
-
-try {
-  const nativeWindowOpen = window.open.bind(window);
-  window.open = ((url?: string | URL, target?: string, features?: string) => {
-    const nextUrl = typeof url === "string" ? url : url?.toString?.() ?? "";
-    // Only intercept genuine popup windows (new tab/window), not same-frame navigations
-    const isPopup = target && target !== "_self" && target !== "_top" && target !== "_parent";
-    if (nextUrl && !nextUrl.startsWith("about:blank") && isPopup) {
-      forwardOpenUrl({ url: nextUrl, source: "window.open", target: target ?? null });
-      return null;
-    }
-    return nativeWindowOpen(url as string | undefined, target, features);
-  }) as typeof window.open;
-} catch { /* ignore */ }
 
 /* ------------------------------------------------------------------ */
 /*  Video scanning                                                      */
@@ -468,7 +440,6 @@ window.addEventListener("message", (event) => {
     scheduleChildForward(1200);
     return;
   }
-  if (src === MSG_SOURCE_OPEN_URL) { forwardOpenUrl(event.data.payload); return; }
   if (src === "yiqikan-member-blocked") { ipcRenderer.sendToHost("yiqikan:member-blocked-action"); return; }
   if (src === MSG_SOURCE_PLAY_EVENT) {
     handleMemberPlayEvent(!!event.data.isPlay, true);
