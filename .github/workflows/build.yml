@@ -163,9 +163,9 @@ jobs:
           cd android
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
-          ./gradlew assembleRelease --no-daemon --stacktrace -x lint -x lintVitalRelease -x lintVitalAnalyzeRelease
+          ./gradlew assembleRelease --no-daemon -x lint -x lintVitalRelease -x lintVitalAnalyzeRelease
           mkdir -p ../release
-          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          APK_FILE=$(find . -name "*.apk" | head -n 1)
           if [ -n "$APK_FILE" ]; then
             cp "$APK_FILE" "../release/Yiqikan.${VERSION}.apk"
             cp "$APK_FILE" "../release/Yiqikan.apk"
