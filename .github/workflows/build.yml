@@ -160,6 +160,8 @@ jobs:
           find node_modules -name "hermesc" -exec chmod +x {} + 2>/dev/null || true
           cd apps/mobile
           npx expo prebuild --platform android --clean
+          mkdir -p android/app/src/main/assets
+          npx expo export:embed --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/
           cd android
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
