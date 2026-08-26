@@ -162,10 +162,18 @@ jobs:
           npx expo prebuild --platform android --clean
           mkdir -p android/app/src/main/assets
           npx expo export:embed --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/
+          node -e "
+            const fs = require('fs');
+            const file = 'android/app/build.gradle';
+            let content = fs.readFileSync(file, 'utf-8');
+            content = content.replace('react {', 'react {\n    debuggableVariants = [\"debug\", \"debugOptimized\", \"release\"]');
+            fs.writeFileSync(file, content);
+          "
           cd android
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
-          ./gradlew assembleRelease --no-daemon -x lint -x lintVitalRelease -x lintVitalAnalyzeRelease
+          echo "expo.inlineModules.watchedDirectories=[]" >> gradle.properties
+          ./gradlew assembleRelease --no-daemon --stacktrace -x lint -x lintVitalRelease -x lintVitalAnalyzeRelease
           mkdir -p ../release
           APK_FILE=$(find . -name "*.apk" | head -n 1)
           if [ -n "$APK_FILE" ]; then
