@@ -155,6 +155,7 @@ jobs:
       - name: Build & package (Android APK)
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
+          EXPO_PUBLIC_SERVER_URL: "https://together-ws.cpolar.cn"
         run: |
           VERSION="${{ steps.tag.outputs.version }}"
           find node_modules -name "hermesc" -exec chmod +x {} + 2>/dev/null || true
