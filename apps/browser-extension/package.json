@@ -1,9 +1,0 @@
-{
-  "name": "@yiqikan/browser-extension",
-  "version": "1.0.0",
-  "private": true,
-  "description": "异起看 (YiVideo) - 专属观影助手浏览器扩展",
-  "scripts": {
-    "build": "node scripts/build.mjs"
-  }
-}
