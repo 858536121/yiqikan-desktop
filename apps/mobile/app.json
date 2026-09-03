@@ -2,7 +2,7 @@
   "expo": {
     "name": "异起看",
     "slug": "yiqikan-mobile",
-    "version": "1.14.0",
+    "version": "1.13.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
