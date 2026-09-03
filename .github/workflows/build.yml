@@ -166,19 +166,25 @@ jobs:
           find node_modules -name "hermesc" -exec chmod +x {} + 2>/dev/null || true
           cd apps/mobile
           npx expo prebuild --platform android --clean
-          mkdir -p android/app/src/main/assets
-          npx expo export:embed --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/
+          cp credentials/yiqikan-release.keystore android/app/yiqikan-release.keystore
           node -e "
             const fs = require('fs');
             const file = 'android/app/build.gradle';
             let content = fs.readFileSync(file, 'utf-8');
             content = content.replace('react {', 'react {\n    debuggableVariants = [\"debug\", \"debugOptimized\", \"release\"]');
+            const releaseSigning = \`        release {\\n            storeFile file('yiqikan-release.keystore')\\n            storePassword 'yiqikan2026'\\n            keyAlias 'yiqikan-key-alias'\\n            keyPassword 'yiqikan2026'\\n        }\\n\`;
+            content = content.replace('signingConfigs {', 'signingConfigs {\\n' + releaseSigning);
+            content = content.replace(/signingConfig signingConfigs\.debug/g, 'signingConfig signingConfigs.release');
             fs.writeFileSync(file, content);
           "
           cd android
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
           echo "expo.inlineModules.watchedDirectories=[]" >> gradle.properties
+          echo "YIQIKAN_RELEASE_STORE_FILE=yiqikan-release.keystore" >> gradle.properties
+          echo "YIQIKAN_RELEASE_KEY_ALIAS=yiqikan-key-alias" >> gradle.properties
+          echo "YIQIKAN_RELEASE_STORE_PASSWORD=yiqikan2026" >> gradle.properties
+          echo "YIQIKAN_RELEASE_KEY_PASSWORD=yiqikan2026" >> gradle.properties
           ./gradlew assembleRelease --no-daemon --stacktrace -x lint -x lintVitalRelease -x lintVitalAnalyzeRelease
           mkdir -p ../release
           APK_FILE=$(find . -name "*.apk" | head -n 1)
