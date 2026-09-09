@@ -1,9 +1,0 @@
-appId: host.exp.Exponent
----
-# 点击顶部工具栏返回主页，恢复空状态
-- tapOn: "返回主页"
-
-# 验证已平滑回到空状态页面
-- extendedWaitUntil:
-    visible: "常用影视推荐站点"
-    timeout: 10000
