@@ -1,0 +1,16 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "房间成员标签页"
+    optional: true
+
+- extendedWaitUntil:
+    visible: "在线成员 (1人)"
+    timeout: 8000
+
+- tapOn:
+    id: "退出房间"
+
+- extendedWaitUntil:
+    visible: "新建观影房间"
+    timeout: 8000
