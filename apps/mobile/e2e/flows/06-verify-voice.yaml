@@ -1,0 +1,76 @@
+appId: host.exp.Exponent
+---
+# 切换到底部【房间成员】标签页
+- tapOn:
+    text: "房间.*"
+    optional: true
+
+- tapOn:
+    id: "房间成员标签页"
+    optional: true
+
+- extendedWaitUntil:
+    visible: ".*在线成员.*"
+    timeout: 6000
+
+# 点击进入语音
+- tapOn:
+    id: "进入语音按钮"
+
+# 自动处理 iOS 麦克风授权弹窗
+- tapOn:
+    text: "Allow"
+    optional: true
+
+- tapOn:
+    text: "允许"
+    optional: true
+
+# 若弹窗延迟导致短暂显示“重试语音”，点击重试
+- tapOn:
+    text: "重试语音"
+    optional: true
+
+- tapOn:
+    text: "Allow"
+    optional: true
+
+- tapOn:
+    text: "允许"
+    optional: true
+
+# 等待 WebRTC 握手并连接成功（状态切换为静音切换麦克风按钮）
+- extendedWaitUntil:
+    visible:
+      id: "语音麦克风按钮"
+    timeout: 15000
+
+# 测试麦克风静音切换
+- tapOn:
+    id: "语音麦克风按钮"
+
+# 打开语音高级设置弹窗
+- tapOn:
+    id: "语音设置按钮"
+
+- extendedWaitUntil:
+    visible:
+      id: "语音通话控制标题"
+    timeout: 5000
+
+# 切换【AI 降噪与回声消除】状态（验证 toggleNoiseCancellation 执行且 WebRTC 重载不崩溃）
+- tapOn:
+    id: "语音降噪开关"
+
+# 关闭设置弹窗
+- tapOn:
+    id: "语音设置关闭按钮"
+
+# 挂断语音通话
+- tapOn:
+    id: "语音挂断按钮"
+
+# 验证平滑恢复到未连麦状态
+- extendedWaitUntil:
+    visible: "进入语音"
+    timeout: 8000
