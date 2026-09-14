@@ -1,0 +1,72 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "语音设置关闭按钮"
+    optional: true
+
+- tapOn:
+    text: "Allow"
+    optional: true
+
+- tapOn:
+    text: "允许"
+    optional: true
+
+- tapOn:
+    text: "允许粘贴"
+    optional: true
+
+- tapOn:
+    text: "确定"
+    optional: true
+
+- tapOn:
+    text: "返回主页"
+    optional: true
+
+# 如果处于房间内，先切换到房间标签页，再点击退出房间返回大厅
+- tapOn:
+    text: "房间.*"
+    optional: true
+
+- tapOn:
+    id: "房间成员标签页"
+    optional: true
+
+- tapOn:
+    id: "退出房间"
+    optional: true
+
+- tapOn:
+    text: "确定"
+    optional: true
+
+- extendedWaitUntil:
+    visible: "新建观影房间"
+    timeout: 6000
+
+# 点击新建观影房间
+- tapOn: "新建观影房间"
+
+- tapOn:
+    text: "允许粘贴"
+    optional: true
+
+# 验证就绪
+- extendedWaitUntil:
+    visible: "进入语音"
+    timeout: 8000
+- assertVisible: "在线成员 (1人)"
+- assertVisible:
+    text: ".*房主.*"
+
+# 点击分享邀请口令
+- tapOn: "分享邀请口令"
+
+- extendedWaitUntil:
+    visible: ".*邀请口令已复制.*"
+    timeout: 5000
+
+- tapOn:
+    text: "好的"
+    optional: true

@@ -1,0 +1,310 @@
+import React, { useRef, useState, useCallback, useEffect, createContext, useContext } from 'react';
+import { StyleSheet, View, Alert, AppState } from 'react-native';
+import { WebView } from 'react-native-webview';
+import { VOICE_BRIDGE_HTML } from './voice-bridge-html';
+import { useRoomStore } from '../store/useRoomStore';
+
+const SafeWebView = WebView as React.ComponentType<any>;
+
+export type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error';
+
+export interface VoiceStats {
+  localVolume: number;
+  isLocalSpeaking: boolean;
+  maxRemoteVolume: number;
+  isRemoteSpeaking: boolean;
+}
+
+export interface VoiceContextValue {
+  voiceStatus: VoiceStatus;
+  errorMessage: string | null;
+  isMuted: boolean;
+  isDeafened: boolean;
+  callVolume: number;
+  noiseCancellation: boolean;
+  stats: VoiceStats;
+  joinVoice: (roomId: string, userId: string, userName: string) => void;
+  leaveVoice: () => void;
+  toggleMute: () => void;
+  toggleDeafen: () => void;
+  setCallVolume: (vol: number) => void;
+  toggleNoiseCancellation: () => void;
+}
+
+const VoiceContext = createContext<VoiceContextValue | null>(null);
+
+export const VoiceProvider: React.FC<{ children: React.ReactNode; onShowToast?: (msg: string) => void }> = ({
+  children,
+  onShowToast,
+}) => {
+  const webviewRef = useRef<WebView>(null);
+  const [isBridgeReady, setIsBridgeReady] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isDeafened, setIsDeafened] = useState(false);
+  const [callVolume, setCallVolumeState] = useState(100);
+  const [noiseCancellation, setNoiseCancellation] = useState(true);
+  const [stats, setStats] = useState<VoiceStats>({
+    localVolume: 0,
+    isLocalSpeaking: false,
+    maxRemoteVolume: 0,
+    isRemoteSpeaking: false,
+  });
+
+  const pendingJoinRef = useRef<{ roomId: string; userId: string; userName: string } | null>(null);
+  const connectingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      switch (data.type) {
+        case 'VOICE_LOG':
+          console.log(`[Voice:${data.payload.tag}] ${data.payload.message}`);
+          break;
+        case 'VOICE_BRIDGE_READY':
+          setIsBridgeReady(true);
+          if (pendingJoinRef.current) {
+            const { roomId, userId, userName } = pendingJoinRef.current;
+            pendingJoinRef.current = null;
+            webviewRef.current?.injectJavaScript(
+              `window.__voiceClient && window.__voiceClient.join("${roomId}", "${userId}", "${userName}"); true;`
+            );
+          }
+          break;
+        case 'VOICE_STATUS':
+          if (data.payload.status === 'connected' || data.payload.status === 'error' || data.payload.status === 'idle') {
+            if (connectingTimerRef.current) {
+              clearTimeout(connectingTimerRef.current);
+              connectingTimerRef.current = null;
+            }
+          }
+          setVoiceStatus(prev => {
+            if (prev === 'reconnecting' && data.payload.status === 'connected') {
+              onShowToast?.('语音通话已恢复');
+            } else if (data.payload.status === 'connected') {
+              onShowToast?.('已连接实时语音频道');
+            } else if (data.payload.status === 'reconnecting') {
+              onShowToast?.('语音网络波动，正在重连...');
+            }
+            return data.payload.status;
+          });
+          break;
+        case 'VOICE_ICE_STATE':
+          if (data.payload.state === 'disconnected' || data.payload.state === 'failed') {
+            setVoiceStatus(prev => {
+              if (prev === 'connected') {
+                onShowToast?.('语音网络波动，正在重连...');
+              }
+              return 'reconnecting';
+            });
+          } else if (data.payload.state === 'connected') {
+            if (connectingTimerRef.current) {
+              clearTimeout(connectingTimerRef.current);
+              connectingTimerRef.current = null;
+            }
+            setVoiceStatus(prev => {
+              if (prev === 'reconnecting') {
+                onShowToast?.('语音通话已恢复');
+              }
+              return 'connected';
+            });
+          }
+          break;
+        case 'VOICE_STATS':
+          setStats(data.payload);
+          break;
+        case 'VOICE_MUTE_CHANGED':
+          setIsMuted(data.payload.isMuted);
+          break;
+        case 'VOICE_DEAFEN_CHANGED':
+          setIsDeafened(data.payload.isDeafened);
+          break;
+        case 'VOICE_VOLUME_CHANGED':
+          setCallVolumeState(Math.round(data.payload.volume * 100));
+          break;
+        case 'VOICE_NOISE_CHANGED':
+          setNoiseCancellation(data.payload.noiseCancellation);
+          break;
+        case 'VOICE_ERROR':
+          if (connectingTimerRef.current) {
+            clearTimeout(connectingTimerRef.current);
+            connectingTimerRef.current = null;
+          }
+          console.error('[MobileVoiceBridge:Error]', data.payload);
+          setErrorMessage(data.payload.message || '语音连接失败');
+          setVoiceStatus('error');
+          if (onShowToast) {
+            onShowToast(data.payload.message || '语音连接异常，请重试');
+          } else {
+            Alert.alert('语音提示', data.payload.message || '连接语音服务器失败');
+          }
+          break;
+      }
+    } catch (e) {
+      console.warn('Voice message parse error', e);
+    }
+  };
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        webviewRef.current?.injectJavaScript('window.__voiceClient && window.__voiceClient.resumeAudio(); true;');
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const joinVoice = useCallback((roomId: string, userId: string, userName: string) => {
+    setVoiceStatus('connecting');
+    setErrorMessage(null);
+
+    if (connectingTimerRef.current) {
+      clearTimeout(connectingTimerRef.current);
+    }
+    connectingTimerRef.current = setTimeout(() => {
+      setVoiceStatus(prev => {
+        if (prev === 'connecting') {
+          onShowToast?.('语音连接超时，请重试');
+          return 'error';
+        }
+        return prev;
+      });
+    }, 15000);
+
+    if (!isBridgeReady) {
+      pendingJoinRef.current = { roomId, userId, userName };
+    } else {
+      webviewRef.current?.injectJavaScript(
+        `window.__voiceClient && window.__voiceClient.join("${roomId}", "${userId}", "${userName}"); true;`
+      );
+    }
+  }, [isBridgeReady, onShowToast]);
+
+  const leaveVoice = useCallback(() => {
+    if (connectingTimerRef.current) {
+      clearTimeout(connectingTimerRef.current);
+      connectingTimerRef.current = null;
+    }
+    pendingJoinRef.current = null;
+    webviewRef.current?.injectJavaScript('window.__voiceClient && window.__voiceClient.leave(); true;');
+    setVoiceStatus('idle');
+    setStats({
+      localVolume: 0,
+      isLocalSpeaking: false,
+      maxRemoteVolume: 0,
+      isRemoteSpeaking: false,
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      leaveVoice();
+    };
+  }, [leaveVoice]);
+
+  // 联动房间生命周期：当退出房间或房间被重置/解散时，彻底终止 WebRTC 语音通道并释放麦克风
+  const currentRoomId = useRoomStore((state) => state.roomState?.id);
+  const prevRoomIdRef = useRef<string | undefined>(currentRoomId);
+
+  useEffect(() => {
+    if (prevRoomIdRef.current && !currentRoomId) {
+      console.log('[VoiceService] 房间已退出或解散，自动挂断 WebRTC 语音并释放麦克风');
+      leaveVoice();
+    } else if (prevRoomIdRef.current && currentRoomId && prevRoomIdRef.current !== currentRoomId) {
+      console.log('[VoiceService] 已切换至新房间，自动断开旧房间语音');
+      leaveVoice();
+    }
+    prevRoomIdRef.current = currentRoomId;
+  }, [currentRoomId, leaveVoice]);
+
+  const toggleMute = useCallback(() => {
+    const next = !isMuted;
+    setIsMuted(next);
+    webviewRef.current?.injectJavaScript(`window.__voiceClient && window.__voiceClient.setMuted(${next}); true;`);
+  }, [isMuted]);
+
+  const toggleDeafen = useCallback(() => {
+    const next = !isDeafened;
+    setIsDeafened(next);
+    webviewRef.current?.injectJavaScript(`window.__voiceClient && window.__voiceClient.setDeafened(${next}); true;`);
+  }, [isDeafened]);
+
+  const setCallVolume = useCallback((vol: number) => {
+    const norm = Math.max(0, Math.min(100, vol));
+    setCallVolumeState(norm);
+    webviewRef.current?.injectJavaScript(`window.__voiceClient && window.__voiceClient.setVolume(${norm / 100}); true;`);
+  }, []);
+
+  const toggleNoiseCancellation = useCallback(() => {
+    const next = !noiseCancellation;
+    setNoiseCancellation(next);
+    webviewRef.current?.injectJavaScript(`window.__voiceClient && window.__voiceClient.toggleNoiseCancellation(${next}); true;`);
+    onShowToast?.(next ? '已开启语音降噪与回声消除' : '已关闭语音降噪');
+  }, [noiseCancellation, onShowToast]);
+
+  return (
+    <VoiceContext.Provider
+      value={{
+        voiceStatus,
+        errorMessage,
+        isMuted,
+        isDeafened,
+        callVolume,
+        noiseCancellation,
+        stats,
+        joinVoice,
+        leaveVoice,
+        toggleMute,
+        toggleDeafen,
+        setCallVolume,
+        toggleNoiseCancellation,
+      }}
+    >
+      {children}
+      {/* WebRTC 媒体引擎容器 */}
+      <View style={styles.hiddenBridge} pointerEvents="none">
+        <SafeWebView
+          ref={webviewRef}
+          originWhitelist={['*']}
+          source={{ 
+            html: VOICE_BRIDGE_HTML,
+            baseUrl: 'https://localhost'
+          }}
+          onMessage={handleMessage}
+          allowsInlineMediaPlayback={true}
+          mediaPlaybackRequiresUserAction={false}
+          mediaCapturePermissionGrantType="grant"
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          style={styles.bridgeWebView}
+        />
+      </View>
+    </VoiceContext.Provider>
+  );
+};
+
+export const useVoice = () => {
+  const context = useContext(VoiceContext);
+  if (!context) {
+    throw new Error('useVoice must be used within a VoiceProvider');
+  }
+  return context;
+};
+
+const styles = StyleSheet.create({
+  hiddenBridge: {
+    width: 1,
+    height: 1,
+    position: 'absolute',
+    bottom: -100,
+    left: -100,
+    opacity: 0.01,
+    overflow: 'hidden',
+  },
+  bridgeWebView: {
+    width: 1,
+    height: 1,
+    backgroundColor: '#000000',
+  },
+});
