@@ -168,6 +168,12 @@ jobs:
           npx expo prebuild --platform android --clean
           mkdir -p android/app/src/main/assets
           npx expo export:embed --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/
+          node -e "
+            const { createManifestForBuildAsync } = require(require.resolve('expo-updates/utils/build/createManifestForBuildAsync'));
+            createManifestForBuildAsync('android', process.cwd(), 'android/app/src/main/assets', 'index.ts')
+              .then(() => console.log('✅ Generated app.manifest for expo-updates'))
+              .catch(err => { console.error('Failed to generate app.manifest:', err); process.exit(1); });
+          "
           cp credentials/yiqikan-release.keystore android/app/yiqikan-release.keystore
           node -e "
             const fs = require('fs');

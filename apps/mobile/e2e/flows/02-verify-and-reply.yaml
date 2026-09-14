@@ -1,0 +1,27 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible: "在线成员 (2人)"
+    timeout: 8000
+- assertVisible:
+    text: ".*异地恋小红薯妹子.*"
+
+- tapOn:
+    id: "弹幕互动标签页"
+    optional: true
+
+- tapOn:
+    text: "弹幕互动.*"
+    optional: true
+
+- extendedWaitUntil:
+    visible: "宝，我进房间啦，快放电影～❤️"
+    timeout: 10000
+
+- tapOn: "发条弹幕聊天互动吧..."
+- inputText: "好勒，马上给你放！"
+- pressKey: Enter
+
+- extendedWaitUntil:
+    visible: "好勒，马上给你放！"
+    timeout: 5000
