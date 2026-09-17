@@ -41,9 +41,11 @@ if (!isDryRun && (!SecretId || !SecretKey)) {
 const cos = (!isDryRun && SecretId && SecretKey) ? new COS({
   SecretId,
   SecretKey,
+  Timeout: 10 * 60 * 1000,
+  ChunkRetryTimes: 3,
 }) : null;
 
-async function uploadFile(filePath, isDryRun = false) {
+function doUploadFile(filePath, isDryRun = false) {
   const fileName = path.basename(filePath);
   const cosKey = `releases/${fileName}`;
   const fileSizeMB = (fs.statSync(filePath).size / 1024 / 1024).toFixed(2);
@@ -51,7 +53,7 @@ async function uploadFile(filePath, isDryRun = false) {
   if (isDryRun) {
     console.log(`🔍 [DRY RUN] 模拟上传: ${fileName} (${fileSizeMB} MB) -> ${cosKey}`);
     console.log(`   目标地址: https://${CustomDomain}/${cosKey}`);
-    return;
+    return Promise.resolve();
   }
 
   console.log(`\n🚀 开始上传: ${fileName} (${fileSizeMB} MB) -> ${cosKey}`);
@@ -64,7 +66,8 @@ async function uploadFile(filePath, isDryRun = false) {
         Region,
         Key: cosKey,
         FilePath: filePath,
-        SliceSize: 1024 * 1024 * 5, // 5MB 分片
+        SliceSize: 1024 * 1024 * 2, // 2MB 分片，弱网/慢速连接更稳健
+        AsyncLimit: 3, // 并发上传分片
         onProgress: function (progressData) {
           const percent = Math.floor(progressData.percent * 100);
           if (percent >= lastPercent + 10 || percent === 100) {
@@ -83,6 +86,21 @@ async function uploadFile(filePath, isDryRun = false) {
       }
     );
   });
+}
+
+async function uploadFile(filePath, isDryRun = false, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await doUploadFile(filePath, isDryRun);
+    } catch (err) {
+      if (attempt < maxRetries) {
+        console.log(`⚠️ 上传异常，等待 3 秒后进行第 ${attempt + 1}/${maxRetries} 次重试...`);
+        await new Promise(r => setTimeout(r, 3000));
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 async function main() {

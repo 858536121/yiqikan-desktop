@@ -44,6 +44,7 @@
     "release:extension:ota": "bash scripts/release-extension-ota.sh",
     "release": "bash scripts/release.sh",
     "release:upload": "node scripts/upload-releases-cos.mjs",
+    "release:sync:cos": "node scripts/watch-and-sync-cos.mjs",
     "dist:linux": "pnpm --filter @yiqikan/desktop dist:linux",
     "lint": "pnpm -r lint",
     "test:server": "pnpm --filter @yiqikan/server test",
