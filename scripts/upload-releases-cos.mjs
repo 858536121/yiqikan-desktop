@@ -31,15 +31,17 @@ const Bucket = process.env.COS_BUCKET || 'yiqikan-downloads-1304286896';
 const Region = process.env.COS_REGION || 'ap-shanghai';
 const CustomDomain = process.env.COS_CUSTOM_DOMAIN || 'download.yiqikan.club';
 
-if (!SecretId || !SecretKey) {
-  console.error('❌ 缺少 COS 密钥，请检查根目录 .env.cos 或系统环境变量 COS_SECRET_ID / COS_SECRET_KEY');
-  process.exit(1);
+const isDryRun = process.argv.includes('--dry-run');
+
+if (!isDryRun && (!SecretId || !SecretKey)) {
+  console.log('⚠️ 未检测到 COS_SECRET_ID / COS_SECRET_KEY 环境变量，跳过云端对象存储上传。');
+  process.exit(0);
 }
 
-const cos = new COS({
+const cos = (!isDryRun && SecretId && SecretKey) ? new COS({
   SecretId,
   SecretKey,
-});
+}) : null;
 
 async function uploadFile(filePath, isDryRun = false) {
   const fileName = path.basename(filePath);
