@@ -2,7 +2,7 @@
   "expo": {
     "name": "异起看",
     "slug": "yiqikan-mobile",
-    "version": "1.17.0",
+    "version": "1.17",
     "runtimeVersion": {
       "policy": "appVersion"
     },
