@@ -71,14 +71,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload to Tencent Cloud COS
-        continue-on-error: true
-        env:
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
-        run: |
-          node scripts/upload-releases-cos.mjs apps/desktop/release/*.dmg
-
   build-win:
     runs-on: windows-latest
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/desktop-v') || inputs.target == 'all' || inputs.target == 'desktop'
@@ -129,14 +121,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload to Tencent Cloud COS
-        continue-on-error: true
-        env:
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
-        run: |
-          node scripts/upload-releases-cos.mjs apps/desktop/release/*.exe
-
   build-android:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') || startsWith(github.ref, 'refs/tags/android-v') || inputs.target == 'all' || inputs.target == 'mobile' || inputs.target == 'android'
@@ -182,6 +166,10 @@ jobs:
       - name: Build & package (Android APK)
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           EXPO_PUBLIC_SERVER_URL: "https://yiqikan.club"
         run: |
           VERSION="${{ steps.tag.outputs.version }}"
@@ -196,25 +184,11 @@ jobs:
               .then(() => console.log('✅ Generated app.manifest for expo-updates'))
               .catch(err => { console.error('Failed to generate app.manifest:', err); process.exit(1); });
           "
-          cp credentials/yiqikan-release.keystore android/app/yiqikan-release.keystore
-          node -e "
-            const fs = require('fs');
-            const file = 'android/app/build.gradle';
-            let content = fs.readFileSync(file, 'utf-8');
-            content = content.replace('react {', 'react {\n    debuggableVariants = [\"debug\", \"debugOptimized\", \"release\"]');
-            const releaseSigning = \`        release {\\n            storeFile file('yiqikan-release.keystore')\\n            storePassword 'yiqikan2026'\\n            keyAlias 'yiqikan-key-alias'\\n            keyPassword 'yiqikan2026'\\n        }\\n\`;
-            content = content.replace('signingConfigs {', 'signingConfigs {\\n' + releaseSigning);
-            content = content.replace(/signingConfig signingConfigs\.debug/g, 'signingConfig signingConfigs.release');
-            fs.writeFileSync(file, content);
-          "
+          node ../../scripts/prepare-android-signing.mjs
           cd android
           echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
           echo "expo.inlineModules.watchedDirectories=[]" >> gradle.properties
-          echo "YIQIKAN_RELEASE_STORE_FILE=yiqikan-release.keystore" >> gradle.properties
-          echo "YIQIKAN_RELEASE_KEY_ALIAS=yiqikan-key-alias" >> gradle.properties
-          echo "YIQIKAN_RELEASE_STORE_PASSWORD=yiqikan2026" >> gradle.properties
-          echo "YIQIKAN_RELEASE_KEY_PASSWORD=yiqikan2026" >> gradle.properties
           ./gradlew assembleRelease --no-daemon --stacktrace -x lint -x lintVitalRelease -x lintVitalAnalyzeRelease
           mkdir -p ../release
           APK_FILE=$(find . -name "*.apk" | head -n 1)
@@ -236,14 +210,6 @@ jobs:
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to Tencent Cloud COS
-        continue-on-error: true
-        env:
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
-        run: |
-          node scripts/upload-releases-cos.mjs apps/mobile/release/*.apk
 
   build-ios:
     runs-on: macos-26
