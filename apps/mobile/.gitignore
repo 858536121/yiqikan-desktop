@@ -37,7 +37,6 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios
 
 # e2e test screenshots
 e2e/screenshots/*.png
