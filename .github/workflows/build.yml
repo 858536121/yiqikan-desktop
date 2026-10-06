@@ -287,7 +287,15 @@ jobs:
           LANG: en_US.UTF-8
         run: |
           VERSION="${{ steps.tag.outputs.version }}"
+          # 1. 规范化 TMPDIR 与 EAS 工作目录为真实物理路径（避免 macOS /var -> /private/var 软链导致 SPM 相对路径溢出）
+          export TMPDIR="$(cd "${RUNNER_TEMP:-/tmp}" && pwd -P)"
+          export EAS_LOCAL_BUILD_WORKINGDIR="${TMPDIR}/eas-work"
+          mkdir -p "$EAS_LOCAL_BUILD_WORKINGDIR"
+
+          # 2. 避免 Git SSH 鉴权失败与启用 Xcode 内置 SCM
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
           defaults write com.apple.dt.Xcode IDEPackageSupportUseBuiltinSCM YES
+
           cd apps/mobile
           mkdir -p release
           npx eas build --platform ios --profile production --local --non-interactive --verbose-logs --output "release/Yiqikan.${VERSION}.ipa"
