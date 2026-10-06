@@ -1,0 +1,13 @@
+appId: host.exp.Exponent
+# Run only after the browser confirms a mute for this simulator identity.
+---
+- tapOn:
+    id: '弹幕互动标签页'
+- tapOn: '发条弹幕聊天互动吧...'
+- inputText: 'E2E-muted-draft'
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: '聊天暂受限制，请通过帮助与反馈联系我们'
+    timeout: 10000
+- assertVisible: 'E2E-muted-draft'
+- takeScreenshot: 'ios-muted-draft-preserved'
