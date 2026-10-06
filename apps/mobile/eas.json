@@ -14,7 +14,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_NATIVE_VOICE_ENABLED": "true"
+        "EXPO_PUBLIC_NATIVE_VOICE_ENABLED": "true",
+        "EXPO_USE_PRECOMPILED_MODULES": "0"
       }
     }
   },

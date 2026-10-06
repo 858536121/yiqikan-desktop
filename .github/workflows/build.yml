@@ -282,13 +282,15 @@ jobs:
       - name: Build iOS IPA (Local Build on GitHub macOS Runner)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_USE_PRECOMPILED_MODULES: "0"
           LC_ALL: en_US.UTF-8
           LANG: en_US.UTF-8
         run: |
           VERSION="${{ steps.tag.outputs.version }}"
+          defaults write com.apple.dt.Xcode IDEPackageSupportUseBuiltinSCM YES
           cd apps/mobile
           mkdir -p release
-          npx eas build --platform ios --profile production --local --non-interactive --output "release/Yiqikan.${VERSION}.ipa"
+          npx eas build --platform ios --profile production --local --non-interactive --verbose-logs --output "release/Yiqikan.${VERSION}.ipa"
           cp "release/Yiqikan.${VERSION}.ipa" "release/Yiqikan.ipa"
 
       - name: Create or Update Release
