@@ -1,0 +1,25 @@
+appId: host.exp.Exponent
+---
+# 点击进入语音按钮
+- tapOn:
+    id: "进入语音按钮"
+    optional: true
+
+- tapOn:
+    text: "进入语音"
+    optional: true
+
+# 自动处理 iOS 麦克风授权弹窗
+- tapOn:
+    text: "Allow"
+    optional: true
+
+- tapOn:
+    text: "允许"
+    optional: true
+
+# 等待 WebRTC 握手并连接成功（状态切换为语音麦克风按钮）
+- extendedWaitUntil:
+    visible:
+      id: "语音麦克风按钮"
+    timeout: 15000

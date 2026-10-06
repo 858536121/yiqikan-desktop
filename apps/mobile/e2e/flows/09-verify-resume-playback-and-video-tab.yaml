@@ -1,0 +1,97 @@
+appId: host.exp.Exponent
+---
+# 0. 若处于系统剪贴板授权弹窗或 Expo Go 菜单，自动确认
+- tapOn:
+    text: "允许粘贴"
+    optional: true
+
+- tapOn:
+    text: "异起看"
+    optional: true
+
+# 1. 验证首页大厅就绪并处于视觉焦点
+- extendedWaitUntil:
+    visible: "千里同屏，与 TA 一起看"
+    timeout: 10000
+
+# 2. 如果首页已存在“继续观看胶囊”，先直接点击“继续观看胶囊”进入；否则点击推荐站点进入
+- tapOn:
+    id: "首页继续观看胶囊"
+    optional: true
+
+- tapOn:
+    id: "推荐站点-哔哩哔哩"
+    optional: true
+
+# 3. 等待播放器载入完成（出现“返回主页”工具栏按钮）
+- extendedWaitUntil:
+    visible: "返回主页"
+    timeout: 15000
+
+# 4. 验证底部面板存在【视频】Tab（并展开）
+- extendedWaitUntil:
+    visible: ".*视频.*"
+    timeout: 8000
+
+- tapOn:
+    id: "视频标签页"
+    optional: true
+
+# 5. 验证房主状态与核心控制按键
+- extendedWaitUntil:
+    visible: ".*你是房主.*"
+    timeout: 8000
+
+- assertVisible: "快退10秒"
+- assertVisible: "快进10秒"
+- assertVisible: "播放暂停按钮"
+
+# 6. 验证倍速按键已移除（不显示任何 1.5x / 2.0x 倍速标签）
+- assertNotVisible: "1.5x"
+- assertNotVisible: "2.0x"
+
+# 7. 进行播放与微调，积累播放进度
+- tapOn: "快进10秒"
+- tapOn: "快进10秒"
+- tapOn: "播放暂停按钮"
+
+# 8. 点击左上角“返回主页”，验证即时保存断点并平滑返回大厅
+- tapOn:
+    id: "返回主页按钮"
+    optional: true
+
+- tapOn:
+    text: "返回主页"
+    optional: true
+
+- tapOn:
+    point: "6%,6%"
+    optional: true
+
+- extendedWaitUntil:
+    visible: "千里同屏，与 TA 一起看"
+    timeout: 10000
+
+# 9. 验证首页大厅展示 38px 微型断点胶囊（包含时钟、进度与“继续/重看”动作）
+- extendedWaitUntil:
+    visible: ".*(继续|重看|上次看到).*"
+    timeout: 8000
+
+- assertVisible:
+    id: "首页继续观看胶囊"
+
+# 10. 点击首页微型胶囊，验证一键拉起视频并自动聚焦【视频】Tab
+- tapOn:
+    id: "首页继续观看胶囊"
+
+- extendedWaitUntil:
+    visible: "返回主页"
+    timeout: 15000
+
+# 11. 验证自动展开并聚焦在【视频】Tab
+- extendedWaitUntil:
+    visible: ".*你是房主.*"
+    timeout: 8000
+
+- assertVisible: "快退10秒"
+- assertVisible: "播放暂停按钮"
