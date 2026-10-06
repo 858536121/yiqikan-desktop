@@ -1,8 +1,0 @@
-appId: host.exp.Exponent
----
-- tapOn:
-    id: "首页继续观看胶囊"
-
-- extendedWaitUntil:
-    visible: "返回首页"
-    timeout: 12000
