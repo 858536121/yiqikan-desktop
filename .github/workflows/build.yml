@@ -6,6 +6,8 @@ on:
       - 'v*'
       - 'desktop-v*'
       - 'mobile-v*'
+      - 'ios-v*'
+      - 'android-v*'
       - 'extension-v*'
   workflow_dispatch:
     inputs:
@@ -18,6 +20,8 @@ on:
           - all
           - desktop
           - mobile
+          - ios
+          - android
           - extension
 
 jobs:
@@ -135,7 +139,7 @@ jobs:
 
   build-android:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') || inputs.target == 'all' || inputs.target == 'mobile'
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') || startsWith(github.ref, 'refs/tags/android-v') || inputs.target == 'all' || inputs.target == 'mobile' || inputs.target == 'android'
     permissions:
       contents: write
     steps:
@@ -145,7 +149,7 @@ jobs:
         id: tag
         run: |
           RAW_TAG="${GITHUB_REF_NAME}"
-          CLEAN_TAG=$(echo "$RAW_TAG" | sed -E 's/^(desktop-|mobile-)//')
+          CLEAN_TAG=$(echo "$RAW_TAG" | sed -E 's/^(desktop-|mobile-|ios-|android-|extension-)//')
           echo "tag=$CLEAN_TAG" >> $GITHUB_OUTPUT
           echo "version=${CLEAN_TAG#v}" >> $GITHUB_OUTPUT
 
@@ -243,7 +247,7 @@ jobs:
 
   build-ios:
     runs-on: macos-15
-    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') || inputs.target == 'all' || inputs.target == 'mobile'
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') || startsWith(github.ref, 'refs/tags/ios-v') || inputs.target == 'all' || inputs.target == 'mobile' || inputs.target == 'ios'
     permissions:
       contents: write
     steps:
@@ -253,7 +257,7 @@ jobs:
         id: tag
         run: |
           RAW_TAG="${GITHUB_REF_NAME}"
-          CLEAN_TAG=$(echo "$RAW_TAG" | sed -E 's/^(desktop-|mobile-)//')
+          CLEAN_TAG=$(echo "$RAW_TAG" | sed -E 's/^(desktop-|mobile-|ios-|android-|extension-)//')
           echo "tag=$CLEAN_TAG" >> $GITHUB_OUTPUT
           echo "version=${CLEAN_TAG#v}" >> $GITHUB_OUTPUT
 

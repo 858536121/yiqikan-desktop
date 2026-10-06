@@ -38,6 +38,8 @@
     "publish:all": "bash scripts/publish.sh all",
     "publish:desktop": "bash scripts/publish.sh desktop",
     "publish:mobile": "bash scripts/publish.sh mobile",
+    "publish:ios": "bash scripts/publish.sh ios",
+    "publish:android": "bash scripts/publish.sh android",
     "publish:extension": "bash scripts/publish.sh extension",
     "release:mobile": "bash scripts/release-mobile.sh",
     "build:mobile:ios": "pnpm --filter mobile build:ios",
