@@ -246,7 +246,7 @@ jobs:
           node scripts/upload-releases-cos.mjs apps/mobile/release/*.apk
 
   build-ios:
-    runs-on: macos-15
+    runs-on: macos-26
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') || startsWith(github.ref, 'refs/tags/ios-v') || inputs.target == 'all' || inputs.target == 'mobile' || inputs.target == 'ios'
     permissions:
       contents: write
@@ -256,8 +256,14 @@ jobs:
       - name: Compute Tag
         id: tag
         run: |
-          RAW_TAG="${GITHUB_REF_NAME}"
-          CLEAN_TAG=$(echo "$RAW_TAG" | sed -E 's/^(desktop-|mobile-|ios-|android-|extension-)//')
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RAW_TAG="${GITHUB_REF_NAME}"
+            CLEAN_TAG=$(echo "$RAW_TAG" | sed -E 's/^(desktop-|mobile-|ios-|android-|extension-)//')
+          else
+            VERSION=$(node -p "require('./apps/mobile/app.json').expo.version")
+            CLEAN_TAG="v$VERSION"
+          fi
+          [[ "$CLEAN_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid iOS release tag: $CLEAN_TAG"; exit 1; }
           echo "tag=$CLEAN_TAG" >> $GITHUB_OUTPUT
           echo "version=${CLEAN_TAG#v}" >> $GITHUB_OUTPUT
 
@@ -271,22 +277,30 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Select Xcode 26.4.1 (Expo SDK 57)
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.4.1.app/Contents/Developer
+          xcodebuild -version
 
       - name: Setup EAS CLI
         uses: expo/expo-github-action@v8
         with:
-          eas-version: latest
+          eas-version: 24.8.0
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build iOS IPA (Local Build on GitHub macOS Runner)
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          RELEASE_VERSION: ${{ steps.tag.outputs.version }}
+          EXPO_PUBLIC_NATIVE_VOICE_ENABLED: "true"
           EXPO_USE_PRECOMPILED_MODULES: "0"
           LC_ALL: en_US.UTF-8
           LANG: en_US.UTF-8
         run: |
-          VERSION="${{ steps.tag.outputs.version }}"
+          set -euo pipefail
+          VERSION="$RELEASE_VERSION"
           # 1. 规范化 TMPDIR 与 EAS 工作目录为真实物理路径（避免 macOS /var -> /private/var 软链导致 SPM 相对路径溢出）
           export TMPDIR="$(cd "${RUNNER_TEMP:-/tmp}" && pwd -P)"
           export EAS_LOCAL_BUILD_WORKINGDIR="${TMPDIR}/eas-work"
@@ -297,9 +311,19 @@ jobs:
           defaults write com.apple.dt.Xcode IDEPackageSupportUseBuiltinSCM YES
 
           cd apps/mobile
+          APP_VERSION=$(node -p "require('./app.json').expo.version")
+          [[ "$VERSION" == "$APP_VERSION" ]] || { echo "iOS tag version must match app.json ($APP_VERSION)"; exit 1; }
+          [[ ! -d ios ]] || { echo "Upload app config and plugins, not a generated ios directory"; exit 1; }
           mkdir -p release
-          npx eas build --platform ios --profile production --local --non-interactive --verbose-logs --output "release/Yiqikan.${VERSION}.ipa"
+          pnpm exec eas build --platform ios --profile production --local --non-interactive --freeze-credentials --verbose-logs --output "release/Yiqikan.${VERSION}.ipa"
           cp "release/Yiqikan.${VERSION}.ipa" "release/Yiqikan.ipa"
+
+      - name: Upload iOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: apps/mobile/release/*.ipa
+          if-no-files-found: error
 
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
@@ -307,6 +331,7 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: |
             apps/mobile/release/*.ipa
+          fail_on_unmatched_files: true
           generate_release_notes: false
           draft: false
         env:
@@ -372,4 +397,3 @@ jobs:
           git add -A
           git diff --staged --quiet || git commit -m "chore: cleanup source after release ${{ github.ref_name }}"
           git push origin main
-

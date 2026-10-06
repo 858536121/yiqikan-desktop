@@ -30,7 +30,7 @@ class OtaService {
   private baseAppVersion: string;
 
   constructor() {
-    // iOS uses appVersion runtimes: the binary runtime stays fixed when OTA
+    // iOS runtime equals the binary app version and stays fixed when OTA
     // replaces Constants.expoConfig with the downloaded manifest's version.
     const iosRuntime = Platform.OS === 'ios' ? Updates.runtimeVersion : null;
     this.baseAppVersion = iosRuntime && /^\d+\.\d+\.\d+$/.test(iosRuntime)

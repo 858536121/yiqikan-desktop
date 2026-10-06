@@ -3,9 +3,7 @@
     "name": "异起看",
     "slug": "yiqikan-mobile",
     "version": "1.19.0",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.19.0",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
