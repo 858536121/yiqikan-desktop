@@ -1,0 +1,48 @@
+appId: host.exp.Exponent
+---
+# 从首页开始，点击入口直接进入创建表单
+- tapOn:
+    id: "home-create-room"
+
+- extendedWaitUntil:
+    visible: "新建观影房间"
+    timeout: 10000
+- tapOn: "新建观影房间"
+
+# 2. 验证房间状态快照与房主身份
+- extendedWaitUntil:
+    visible: "进入语音"
+    timeout: 10000
+- assertVisible: "设置密码"
+- assertVisible: "房间成员 (1人)"
+- assertVisible:
+    text: ".*房主.*"
+
+# 3. 切换弹幕互动 Tab 并发送实时消息
+- tapOn:
+    id: "弹幕互动标签页"
+- tapOn: "发条弹幕聊天互动吧..."
+- inputText: "Hello YIQIKAN AI Test"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: ".*Hello YIQIKAN AI Test.*"
+    timeout: 5000
+
+# 4. 使用稳定的组件标识复制邀请，结果以应用 Toast 确认
+- tapOn:
+    id: "房间成员标签页"
+- tapOn:
+    id: "分享邀请口令"
+- extendedWaitUntil:
+    visible: ".*邀请口令已复制.*"
+    timeout: 5000
+
+# 5. 自定义确认窗退出，恢复首页明确入口
+- tapOn:
+    id: "退出房间"
+- tapOn:
+    id: "确定"
+- extendedWaitUntil:
+    visible:
+      id: "home-create-room"
+    timeout: 5000

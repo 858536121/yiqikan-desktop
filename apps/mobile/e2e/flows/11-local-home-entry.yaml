@@ -1,0 +1,48 @@
+appId: host.exp.Exponent
+# 使用本地临时服务的四个推荐站点，在首页开始。
+---
+- tapOn:
+    id: '忽略'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-create-room'
+    timeout: 20000
+- takeScreenshot: home-material-four-sites
+- assertNotVisible:
+    id: '首页创建加入房间按钮'
+- scrollUntilVisible:
+    element:
+      id: '推荐站点-测试站点四'
+    direction: DOWN
+    timeout: 10000
+- assertVisible:
+    id: '推荐站点-测试站点四'
+- takeScreenshot: four-sites-bottom
+- scrollUntilVisible:
+    element:
+      id: 'home-join-room'
+    direction: UP
+    timeout: 10000
+- tapOn:
+    id: 'home-join-room'
+- assertVisible:
+    id: 'room-paste-invitation'
+- assertVisible:
+    id: '新建观影房间'
+- assertVisible:
+    id: '加入已有房间'
+- assertNotVisible:
+    id: 'home-create-room'
+- takeScreenshot: unified-room-form
+- tapOn:
+    id: '清空房间号'
+    optional: true
+- tapOn:
+    id: '清空房间密码'
+    optional: true
+- tapOn: '新建观影房间'
+- extendedWaitUntil:
+    visible: '进入语音'
+    timeout: 10000
+- takeScreenshot: room-created
