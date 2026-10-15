@@ -1,0 +1,8 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    text: "视频"
+    optional: true
+- tapOn:
+    id: "视频标签页"
+    optional: true
