@@ -1,0 +1,15 @@
+appId: host.exp.Exponent
+---
+# 点击推荐站点-哔哩哔哩
+- tapOn:
+    id: "推荐站点-哔哩哔哩"
+    optional: true
+
+- tapOn:
+    text: ".*哔哩哔哩.*"
+    optional: true
+
+# 等待顶部工具栏与网页加载
+- extendedWaitUntil:
+    visible: "返回首页"
+    timeout: 15000
