@@ -1,0 +1,69 @@
+# 从未加入房间的视频页面开始；iOS 模拟器需启用屏幕键盘。
+appId: host.exp.Exponent
+---
+- tapOn:
+    text: 不允许粘贴
+    optional: true
+- tapOn:
+    id: 房间成员标签页
+- assertVisible:
+    id: room-panel-create
+- assertVisible:
+    id: room-panel-join
+- assertVisible:
+    id: room-panel-paste
+- tapOn:
+    id: room-panel-create
+- assertVisible: 创建房间
+- assertVisible:
+    id: room-entry-identity
+- assertNotVisible:
+    id: 房间昵称输入框
+- assertNotVisible:
+    id: 加入已有房间
+- takeScreenshot: room-create-default
+- tapOn:
+    id: room-create-options
+- tapOn:
+    id: 房间号输入框
+- eraseText
+- inputText: kbtest
+- takeScreenshot: room-form-room-id-keyboard
+- pressKey: Enter
+- inputText: '2468'
+- takeScreenshot: room-form-password-keyboard
+- tapOn:
+    id: 密码显隐切换
+- takeScreenshot: room-form-password-visible
+- tapOn:
+    id: 密码显隐切换
+- tapOn:
+    id: 清空房间密码
+- tapOn:
+    id: 清空房间号
+- swipe:
+    start: '50%,45%'
+    end: '50%,30%'
+    duration: 500
+- takeScreenshot: room-form-keyboard-dismissed
+- tapOn:
+    id: room-entry-close
+- tapOn:
+    id: room-panel-join
+- assertVisible: 加入房间
+- assertVisible:
+    id: room-paste-invitation
+- assertVisible:
+    id: room-entry-identity
+- assertNotVisible:
+    id: 新建观影房间
+- assertNotVisible:
+    id: 房间昵称输入框
+- takeScreenshot: room-join-form
+- tapOn:
+    id: room-entry-close
+- tapOn:
+    id: 视频标签页
+- assertVisible:
+    id: 房间成员标签页
+- takeScreenshot: back-to-video-panel
