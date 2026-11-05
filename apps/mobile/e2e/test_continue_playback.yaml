@@ -1,8 +1,0 @@
-appId: host.exp.Exponent
----
-- assertVisible: "千里同屏，与 TA 一起看"
-- tapOn: "继续.*"
-- extendedWaitUntil:
-    visible: ".*视频.*"
-    timeout: 10000
-- assertVisible: ".*视频.*"
