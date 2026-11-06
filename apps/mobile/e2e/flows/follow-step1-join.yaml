@@ -1,0 +1,26 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "home-join-room"
+
+- extendedWaitUntil:
+    visible: "加入已有房间"
+    timeout: 8000
+
+- tapOn:
+    text: "清空"
+    optional: true
+
+- tapOn:
+    id: "房间号输入框"
+
+- eraseText: 30
+
+- inputText: "${ROOM_ID}"
+
+- tapOn: "加入已有房间"
+
+- extendedWaitUntil:
+    visible:
+      id: "跟随房主徽章按钮"
+    timeout: 15000
