@@ -205,7 +205,27 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: |
-            apps/mobile/release/*.apk
+            apps/mobile/release/Yiqikan.${{ steps.tag.outputs.version }}.apk
+            apps/mobile/release/Yiqikan.apk
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Record completed Android build
+        env:
+          RELEASE_VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          checksum=$(sha256sum "apps/mobile/release/Yiqikan.${RELEASE_VERSION}.apk")
+          printf '{"commit":"%s","sha256":"%s"}\n' "$GITHUB_SHA" "${checksum%% *}" > android-build.json
+
+      - name: Publish Android build metadata
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: android-build.json
+          fail_on_unmatched_files: true
           generate_release_notes: false
           draft: false
         env:
