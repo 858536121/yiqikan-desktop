@@ -1,0 +1,48 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    text: "忽略"
+    optional: true
+
+- tapOn:
+    id: "退出房间"
+    optional: true
+
+- tapOn:
+    text: "确定"
+    optional: true
+
+# 若在首页收起态，点击展开
+- tapOn:
+    id: "home-create-room"
+    optional: true
+
+- tapOn:
+    text: ".*创建.*加入.*观影房间.*"
+    optional: true
+
+- extendedWaitUntil:
+    visible: "新建观影房间"
+    timeout: 8000
+
+- tapOn:
+    text: "留空自动生成"
+    optional: true
+
+- inputText: "test99"
+
+- tapOn: "新建观影房间"
+
+- extendedWaitUntil:
+    visible: "房间已存在"
+    timeout: 5000
+
+- assertVisible: "房间已存在"
+- assertVisible: "换个房间号"
+- assertVisible: "直接加入"
+
+- tapOn: "直接加入"
+
+- extendedWaitUntil:
+    visible: "房间成员 (2人)"
+    timeout: 8000
