@@ -1,0 +1,16 @@
+appId: host.exp.Exponent
+# Restart Expo Go with the same local Metro URL before this flow, keeping data.
+---
+- extendedWaitUntil:
+    visible:
+      id: 'home-join-room'
+    timeout: 20000
+- tapOn:
+    id: 'home-join-room'
+- extendedWaitUntil:
+    visible: '服务访问暂受限制，请通过帮助与反馈联系开发者'
+    timeout: 10000
+- assertNotVisible: '正在重新连接房间'
+- takeScreenshot: 'ios-banned-reconnect-denied'
+- tapOn:
+    id: '确定'
