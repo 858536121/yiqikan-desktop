@@ -1,0 +1,45 @@
+appId: host.exp.Exponent
+# The disposable admin-device-fixture host creates room adminqa.
+---
+- tapOn:
+    id: 'safety-close'
+    optional: true
+- tapOn:
+    id: '房间成员标签页'
+    optional: true
+- tapOn:
+    id: '退出房间'
+    optional: true
+- tapOn:
+    id: '确定'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'home-join-room'
+    timeout: 20000
+- tapOn:
+    id: 'home-join-room'
+- tapOn:
+    id: '房间号输入框'
+- eraseText
+- inputText: 'adminqa'
+- hideKeyboard
+- tapOn:
+    id: '加入已有房间'
+- extendedWaitUntil:
+    visible:
+      id: 'room-member-${TARGET_MEMBER_ID}'
+    timeout: 10000
+- tapOn:
+    id: 'room-member-${TARGET_MEMBER_ID}'
+- tapOn:
+    id: 'member-open-safety'
+- tapOn:
+    id: 'btn-submit-report'
+- extendedWaitUntil:
+    visible:
+      id: 'report-receipt'
+    timeout: 8000
+- takeScreenshot: 'ios-report-receipt'
+- tapOn:
+    id: 'safety-close'
