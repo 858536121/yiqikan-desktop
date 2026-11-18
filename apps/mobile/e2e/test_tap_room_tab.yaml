@@ -1,7 +1,0 @@
-appId: host.exp.Exponent
----
-- tapOn:
-    text: "房间 \\(1\\)"
-- extendedWaitUntil:
-    visible: "进入语音"
-    timeout: 5000
