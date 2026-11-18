@@ -1,0 +1,11 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["QqLoginModule"],
+    "podspecPath": "YiqikanQqLogin.podspec",
+    "appDelegateSubscribers": ["QqLoginSubscriber"]
+  },
+  "android": {
+    "modules": ["expo.modules.yiqikanqq.QqLoginModule"]
+  }
+}
