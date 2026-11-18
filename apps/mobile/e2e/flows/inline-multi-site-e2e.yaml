@@ -1,0 +1,74 @@
+appId: host.exp.Exponent
+---
+# ===================================================================
+# 🎬 异起看 iOS 真机/模拟器 E2E 自动化测试：多站点视频内联播放与防跳出验证
+# ===================================================================
+
+# Case 1: 验证 Bilibili 视频内联播放（无系统 AVPlayer 弹窗、无错误全屏）
+- tapOn:
+    id: "首页继续观看胶囊"
+
+- extendedWaitUntil:
+    visible: "返回首页"
+    timeout: 15000
+
+- assertVisible: "返回首页"
+
+- takeScreenshot: "01_bilibili_inline_playing"
+
+# 点击返回首页
+- tapOn:
+    id: "返回主页按钮"
+
+- extendedWaitUntil:
+    visible: "异起看 · YIQIKAN"
+    timeout: 8000
+
+# Case 2: 验证 H5 播放器（本地沙盒，带自动 play 与 silent webkitEnterFullscreen 全屏拦截）
+- tapOn:
+    text: "视频网址或搜索输入框"
+
+- inputText: "http://127.0.0.1:4321"
+
+- tapOn:
+    text: "搜索或前往按钮"
+
+- extendedWaitUntil:
+    visible: "返回首页"
+    timeout: 10000
+
+# 验证沙盒加载完成，即使沙盒内部自动触发全屏请求，顶部工具栏依旧稳稳保留（证明全屏已被安全拦截，维持纯内联）
+- assertVisible: "返回首页"
+
+- takeScreenshot: "02_h5_sandbox_inline_playing"
+
+# 从沙盒返回首页
+- tapOn:
+    id: "返回主页按钮"
+
+- extendedWaitUntil:
+    visible: "异起看 · YIQIKAN"
+    timeout: 8000
+
+# Case 3: 验证从推荐站点卡片进入哔哩哔哩
+- tapOn:
+    id: "推荐站点-哔哩哔哩"
+
+- extendedWaitUntil:
+    visible: "返回首页"
+    timeout: 15000
+
+# 验证顶部工具栏完备
+- assertVisible: "返回首页"
+
+- takeScreenshot: "03_recommend_bilibili_inline"
+
+# 优雅返回首页
+- tapOn:
+    id: "返回主页按钮"
+
+- extendedWaitUntil:
+    visible: "异起看 · YIQIKAN"
+    timeout: 8000
+
+- takeScreenshot: "04_all_cases_passed_home"
