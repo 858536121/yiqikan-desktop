@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>com.yiqikan.app</string>
+    <key>CFBundleDisplayName</key><string>异起看 QQ 联调</string>
+    <key>CFBundleExecutable</key><string>QQLoginProbe</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>UILaunchScreen</key><dict/>
+    <key>CFBundleURLTypes</key>
+    <array><dict><key>CFBundleURLSchemes</key><array>
+        <string>tencent1112545470</string>
+        <string>QQ425018BE</string>
+    </array></dict></array>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>mqq</string><string>mqqapi</string><string>tim</string>
+        <string>mqqopensdknopasteboard</string><string>mqqopensdknopasteboardios16</string>
+        <string>mqqopensdkapiV2</string><string>mqqOpensdkSSoLogin</string>
+    </array>
+</dict>
+</plist>
