@@ -171,10 +171,13 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           EXPO_PUBLIC_SERVER_URL: "https://yiqikan.club"
+          YIQIKAN_QQ_LOGIN_NATIVE: "1"
+          EXPO_PUBLIC_QQ_LOGIN_ENABLED: "1"
         run: |
           VERSION="${{ steps.tag.outputs.version }}"
           find node_modules -name "hermesc" -exec chmod +x {} + 2>/dev/null || true
           cd apps/mobile
+          bash scripts/prepare-qq-sdk.sh android
           npx expo prebuild --platform android --clean
           mkdir -p android/app/src/main/assets
           npx expo export:embed --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res/
@@ -282,6 +285,8 @@ jobs:
           RELEASE_VERSION: ${{ steps.tag.outputs.version }}
           EXPO_PUBLIC_NATIVE_VOICE_ENABLED: "true"
           EXPO_USE_PRECOMPILED_MODULES: "0"
+          YIQIKAN_QQ_LOGIN_NATIVE: "1"
+          EXPO_PUBLIC_QQ_LOGIN_ENABLED: "1"
           LC_ALL: en_US.UTF-8
           LANG: en_US.UTF-8
         run: |
