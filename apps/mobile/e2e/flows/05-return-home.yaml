@@ -1,0 +1,18 @@
+appId: host.exp.Exponent
+---
+- tapOn:
+    id: "返回主页按钮"
+
+- tapOn:
+    text: "允许粘贴"
+    optional: true
+
+- tapOn:
+    text: "Allow"
+    optional: true
+
+# 验证已平滑回到空状态页面
+- extendedWaitUntil:
+    visible: "推荐站点"
+    timeout: 10000
+

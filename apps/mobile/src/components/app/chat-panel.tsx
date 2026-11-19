@@ -1,0 +1,750 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView, 
+  Modal, 
+  TouchableWithoutFeedback, 
+  Keyboard, 
+  Platform,
+  Switch,
+  type NativeScrollEvent,
+} from 'react-native';
+import { Check, ImagePlus, ListChecks, Send, MessageSquareDashed, ShieldAlert } from 'lucide-react-native';
+import { openSafetyPanel } from './safety-sheet';
+import { socketService } from '../../services/socket';
+import type { MemberPresence } from '@yiqikan/shared';
+import { ProfileAvatarView } from './profile-ui';
+import { avatarImageUrl } from '../../utils/profile-avatar';
+import { resolveWebUrl } from '../../services/environment';
+import { appControlColors as colors } from '../../theme/colors';
+import type { ViewingMemorySource } from '../../webview/viewing-memory-artwork';
+import { AppActionRow, AppActionSheet, AppButton } from './app-ui';
+import { ViewingMemoryEditor } from './viewing-memory-editor';
+import { AndroidChatComposer } from './chat-composer-layer';
+import { useChatKeyboard } from '../../hooks/use-chat-keyboard';
+
+type ChatMember = Pick<MemberPresence, 'id' | 'name' | 'avatar' | 'avatarPath'>;
+const NO_MEMBERS: readonly ChatMember[] = [];
+
+interface ChatMessage {
+  id: string;
+  actorId?: string;
+  actorName: string;
+  kind?: 'text' | 'system';
+  message: string;
+  createdAt?: number;
+}
+
+type ChatSelection = { ids: Set<string>; skipped: Set<string> };
+type SelectionScroll = 'idle' | 'dragging' | 'released' | 'momentum';
+
+interface ChatPanelProps {
+  roomId?: string;
+  members?: readonly ChatMember[];
+  messages: ChatMessage[];
+  chatInput: string;
+  setChatInput: (val: string) => void;
+  onSend: () => Promise<boolean>;
+  onSent?: () => void;
+  sendError?: string | null;
+  isActive: boolean;
+  onReadMessages?: (id: string) => void;
+  onSelectionBackChange?: (handler: (() => boolean) | null) => void;
+  enableMemory?: boolean;
+  memoryTitle?: string;
+}
+
+const ComposerLayer = Platform.OS === 'android' ? AndroidChatComposer : Modal;
+
+const QUICK_DANMAKU_TAGS = ['哈哈哈哈', '666', '太甜了吧❤️', '前方高能！', '呜呜呜😭', '神作！', '笑死我了'];
+
+export function ChatPanel({
+  roomId = '',
+  members = NO_MEMBERS,
+  messages,
+  chatInput,
+  setChatInput,
+  onSend,
+  onSent,
+  sendError,
+  isActive,
+  onReadMessages,
+  onSelectionBackChange,
+  enableMemory = false,
+  memoryTitle,
+}: ChatPanelProps) {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const composerVisibleRef = useRef(false);
+  composerVisibleRef.current = isActive && isComposerOpen;
+  const activeRef = useRef(isActive);
+  activeRef.current = isActive;
+  const draftRef = useRef(chatInput);
+  draftRef.current = chatInput;
+  const onSentRef = useRef(onSent);
+  onSentRef.current = onSent;
+  const composerSession = useRef(0);
+  const pendingDismiss = useRef<number | null>(null);
+  const mounted = useRef(true);
+  const [localSendError, setLocalSendError] = useState<string | null>(null);
+  const errorMessage = sendError || localSendError;
+  const [isSending, setIsSending] = useState(false);
+  const sendingRef = useRef(false);
+  const myUserId = socketService.getUserId();
+  const atBottom = useRef(true);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
+  const [messageMenu, setMessageMenu] = useState<{ message: ChatMessage; name: string; isMe: boolean } | null>(null);
+  const [selection, setSelection] = useState<ChatSelection | null>(null);
+  const [swipeSelectionEnabled, setSwipeSelectionEnabled] = useState(true);
+  const selectionScroll = useRef<SelectionScroll>('idle');
+  const messageBounds = useRef(new Map<string, { top: number; bottom: number }>());
+  const [memory, setMemory] = useState<ViewingMemorySource | null>(null);
+  const pendingSafety = useRef<Parameters<typeof openSafetyPanel>[0] | null>(null);
+  const isSelecting = selection !== null;
+  const canSwipeSelect = isSelecting && swipeSelectionEnabled;
+  const selectableMessages = useMemo(() => messages.filter(message => message.kind !== 'system'), [messages]);
+  // Keep known identities for departed members while this room's chat is open.
+  // A room change starts a new cache so identities cannot leak across rooms.
+  const memberCache = useRef({ roomId, byId: new Map<string, ChatMember>() });
+  const membersById = useMemo(() => {
+    const result = new Map(memberCache.current.roomId === roomId ? memberCache.current.byId : []);
+    members.forEach(member => result.set(member.id, member));
+    return result;
+  }, [roomId, members]);
+  useEffect(() => { memberCache.current = { roomId, byId: membersById }; }, [roomId, membersById]);
+
+  const closeComposer = () => {
+    const wasVisible = composerVisibleRef.current;
+    composerSession.current++;
+    pendingDismiss.current = null;
+    composerVisibleRef.current = false;
+    setIsComposerOpen(false);
+    if (wasVisible) Keyboard.dismiss();
+  };
+  const openComposer = () => {
+    composerSession.current++;
+    pendingDismiss.current = null;
+    setIsComposerOpen(true);
+  };
+  const focusComposer = () => {
+    if (composerVisibleRef.current) inputRef.current?.focus();
+  };
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const keyboard = useChatKeyboard(isActive && isComposerOpen, () => {
+    if (composerVisibleRef.current) closeComposer();
+  });
+
+  useEffect(() => {
+    if (!isActive) {
+      closeComposer();
+      pendingSafety.current = null;
+      setMessageMenu(null);
+      setSelection(null);
+      setMemory(null);
+      return;
+    }
+    if (isSelecting) return;
+    if (!atBottom.current) { setHasNewMessages(true); return; }
+    const timer = setTimeout(() => {
+      if (!atBottom.current) { setHasNewMessages(true); return; }
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+      const latest = messages[messages.length - 1];
+      if (latest) onReadMessages?.(latest.id);
+      setHasNewMessages(false);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [messages, isActive, isSelecting, onReadMessages]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !isActive || !isSelecting || memory || !onSelectionBackChange) return;
+    onSelectionBackChange(() => {
+      if (!activeRef.current) return false;
+      setSelection(null);
+      return true;
+    });
+    return () => onSelectionBackChange(null);
+  }, [isActive, isSelecting, memory, onSelectionBackChange]);
+
+  const selectedMessages = selection ? selectableMessages.filter(message => selection.ids.has(message.id)) : [];
+  const allSelected = selectableMessages.length > 0 && selectedMessages.length === selectableMessages.length;
+  const endSelection = () => {
+    selectionScroll.current = 'idle';
+    setSelection(null);
+  };
+  const toggleMessage = (id: string) => setSelection(current => {
+    if (!current) return current;
+    const ids = new Set(current.ids);
+    const skipped = new Set(current.skipped);
+    if (ids.delete(id)) skipped.add(id);
+    else { ids.add(id); skipped.delete(id); }
+    return { ids, skipped };
+  });
+  const toggleAllMessages = () => {
+    selectionScroll.current = 'idle';
+    setSelection(current => current && {
+      ids: new Set(allSelected ? [] : selectableMessages.map(message => message.id)),
+      skipped: new Set(),
+    });
+  };
+  const selectVisibleMessages = ({ contentOffset, layoutMeasurement }: NativeScrollEvent) => {
+    if (selectionScroll.current !== 'dragging' && selectionScroll.current !== 'momentum') return;
+    const top = contentOffset.y;
+    const bottom = top + layoutMeasurement.height;
+    const visible = selectableMessages.filter(message => {
+      const bounds = messageBounds.current.get(message.id);
+      return bounds && bounds.top >= top && bounds.bottom <= bottom;
+    });
+    if (!visible.length) return;
+    setSelection(current => {
+      if (!current) return current;
+      const additions = visible.filter(({ id }) => !current.ids.has(id) && !current.skipped.has(id));
+      return additions.length ? { ...current, ids: new Set([...current.ids, ...additions.map(({ id }) => id)]) } : current;
+    });
+  };
+  const openMemory = () => {
+    const excerpts = selectedMessages.map(message => {
+      const actorId = message.actorId || (message.actorName === '我' ? myUserId : '');
+      const member = membersById.get(actorId);
+      return {
+        senderId: actorId || message.actorName,
+        sender: member?.name || message.actorName,
+        mine: message.actorId ? actorId === myUserId : message.actorName === '我',
+        avatarUrl: avatarImageUrl(member?.avatarPath, resolveWebUrl()) ?? undefined,
+        text: message.message,
+      };
+    });
+    if (!excerpts.length) return;
+    const date = selectedMessages[selectedMessages.length - 1]?.createdAt;
+    setMemory({ kind: 'chat', title: memoryTitle, date, messages: excerpts });
+  };
+  const showSafetyFor = ({ message, name }: NonNullable<typeof messageMenu>, afterDismiss = false) => {
+    if (!message.actorId) return;
+    const panel = { mode: 'target' as const, target: { id: message.actorId, name, messageId: message.id, message: message.message } };
+    if (afterDismiss && Platform.OS === 'ios') pendingSafety.current = panel;
+    else openSafetyPanel(panel);
+  };
+
+  const handleSend = async () => {
+    if (!mounted.current || !activeRef.current || !chatInput.trim() || sendingRef.current) return;
+    const draft = chatInput, session = composerSession.current;
+    const wasOpen = composerVisibleRef.current;
+    sendingRef.current = true; setIsSending(true); setLocalSendError(null);
+    try {
+      const accepted = await onSend();
+      if (!accepted || !mounted.current || !activeRef.current || session !== composerSession.current) return;
+      // Acknowledging one message must not dismiss a newer draft typed while
+      // the request was pending. The parent may already have cleared this one.
+      if (draftRef.current && draftRef.current !== draft) return;
+      closeComposer();
+      if (Platform.OS === 'ios' && wasOpen && onSentRef.current) {
+        // Dismiss the nested input Modal before closing the watch chat Modal.
+        pendingDismiss.current = composerSession.current;
+      } else { onSentRef.current?.(); }
+    } catch {
+      if (mounted.current) setLocalSendError('消息未发送，请重试');
+    } finally {
+      sendingRef.current = false;
+      if (mounted.current) setIsSending(false);
+    }
+  };
+
+  return (
+    <View style={styles.chatContainer}>
+      {!!errorMessage && <Text accessibilityRole="alert" style={styles.sendError}>{errorMessage}</Text>}
+      <ScrollView 
+        ref={scrollViewRef} 
+        style={styles.chatList} 
+        contentContainerStyle={[styles.chatListContent, messages.length === 0 && { flex: 1, justifyContent: 'center' }]}
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={canSwipeSelect ? 16 : 100}
+        onScrollBeginDrag={() => { selectionScroll.current = canSwipeSelect ? 'dragging' : 'idle'; }}
+        onScrollEndDrag={({ nativeEvent }) => {
+          selectVisibleMessages(nativeEvent);
+          selectionScroll.current = selectionScroll.current === 'dragging' ? 'released' : 'idle';
+        }}
+        onMomentumScrollBegin={({ nativeEvent }) => {
+          selectionScroll.current = selectionScroll.current === 'released' && canSwipeSelect ? 'momentum' : 'idle';
+          selectVisibleMessages(nativeEvent);
+        }}
+        onMomentumScrollEnd={({ nativeEvent }) => {
+          selectVisibleMessages(nativeEvent);
+          selectionScroll.current = 'idle';
+        }}
+        onScroll={({ nativeEvent }) => {
+          selectVisibleMessages(nativeEvent);
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          atBottom.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 48;
+          if (isActive && atBottom.current) {
+            setHasNewMessages(false);
+            const latest = messages[messages.length - 1];
+            if (latest) onReadMessages?.(latest.id);
+          }
+        }}
+      >
+        {messages.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <MessageSquareDashed size={36} color="#444" style={{ marginBottom: 8 }} />
+            <Text style={styles.emptyTitle}>暂无弹幕互动</Text>
+            <Text style={styles.emptySub}>发送一条消息，将在视频全屏上方实时滑过</Text>
+          </View>
+        ) : (
+          messages.map((msg) => {
+            const isSystem = msg.kind === 'system';
+            const isMe = msg.actorId ? msg.actorId === myUserId : msg.actorName === '我';
+
+            if (isSystem) {
+              return (
+                <View key={msg.id} style={styles.systemMessageContainer}>
+                  <Text style={styles.systemMessageText}>{msg.message}</Text>
+                </View>
+              );
+            }
+
+            const member = membersById.get(msg.actorId || (isMe ? myUserId : ''));
+            const name = member?.name || msg.actorName;
+            const checked = selection?.ids.has(msg.id) ?? false;
+            return (
+              <View key={msg.id} testID={`chat-message-${msg.id}`} style={[styles.messageWrapper, isMe && styles.messageWrapperMe]}
+                onLayout={enableMemory ? ({ nativeEvent: { layout } }) => {
+                  messageBounds.current.set(msg.id, { top: layout.y, bottom: layout.y + layout.height });
+                } : undefined}>
+                <View testID={`chat-avatar-${msg.id}`} style={styles.messageAvatar}>
+                  <ProfileAvatarView name={name} avatar={member?.avatar} size={36}
+                    imageUri={avatarImageUrl(member?.avatarPath, resolveWebUrl())} />
+                </View>
+                <View style={[styles.messageContent, isMe && styles.messageContentMe]}>
+                  {!isMe && <Text testID={`chat-sender-${msg.id}`} style={styles.senderName} numberOfLines={1}>{name}</Text>}
+                  <TouchableOpacity testID={`chat-bubble-${msg.id}`} disabled={!enableMemory && (isMe || !msg.actorId)} activeOpacity={0.9}
+                    accessibilityRole={isSelecting ? 'checkbox' : undefined}
+                    accessibilityState={isSelecting ? { checked } : undefined}
+                    accessibilityLabel={`${isMe ? '我' : name}：${msg.message}`}
+                    accessibilityHint={isSelecting ? undefined : enableMemory ? '长按查看消息操作' : isMe ? undefined : '长按举报或屏蔽'}
+                    onPress={isSelecting ? () => toggleMessage(msg.id) : undefined}
+                    onLongPress={isSelecting ? undefined : () => {
+                      if (enableMemory) setMessageMenu({ message: msg, name, isMe });
+                      else if (!isMe) showSafetyFor({ message: msg, name, isMe });
+                    }}
+                    style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther, isSelecting && styles.pickBubble,
+                      checked && styles.pickedBubble]}>
+                    {isSelecting && <View style={[styles.check, checked && styles.checked]} importantForAccessibility="no">
+                      {checked && <Check size={12} color={colors.accentButton.ink} strokeWidth={3} />}
+                    </View>}
+                    <Text style={[styles.messageText, isMe && styles.messageTextMe]}>{msg.message}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })
+        )}
+      </ScrollView>
+
+      {hasNewMessages && !isSelecting && <TouchableOpacity style={styles.newMessages} accessibilityLabel="查看新消息" onPress={() => {
+        atBottom.current = true;
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+        setHasNewMessages(false);
+        const latest = messages[messages.length - 1];
+        if (latest) onReadMessages?.(latest.id);
+      }}><Text style={styles.newMessagesText}>新消息 ↓</Text></TouchableOpacity>}
+
+      {/* 底部常态触发栏（点击唤起贴键盘输入浮层，彻底避免挤压视频画面） */}
+      {isSelecting ? <View style={styles.selectionFooter}>
+        <View style={styles.selectionSummary}>
+          <Text style={styles.selectionCount} accessibilityLiveRegion="polite">已选 {selectedMessages.length} 条</Text>
+          <View style={styles.selectionSwitchGroup}>
+            <Text style={styles.selectionSwitchLabel} accessible={false}>滑动勾选</Text>
+            <Switch testID="chat-memory-swipe-selection" accessibilityLabel="滑动勾选"
+              accessibilityHint="滑动时勾选完整显示的消息" style={styles.selectionSwitch}
+              trackColor={{ false: colors.watchControls.edge, true: colors.accentButton.fill }}
+              thumbColor={Platform.OS === 'android' ? colors.ink : undefined}
+              ios_backgroundColor={colors.watchControls.edge}
+              value={swipeSelectionEnabled} onValueChange={enabled => {
+                selectionScroll.current = 'idle';
+                setSwipeSelectionEnabled(enabled);
+              }} />
+          </View>
+        </View>
+        <View style={styles.selectionBar}>
+          <View style={styles.selectionActions}>
+            <AppButton tone="muted" compact label="取消" onPress={endSelection} />
+            <AppButton tone="muted" compact label={allSelected ? '清空' : '全选'} testID="chat-memory-select-all"
+              disabled={!selectableMessages.length} onPress={toggleAllMessages} />
+          </View>
+          <AppButton tone="accent" icon={ImagePlus} label="预览图片" testID="chat-memory-preview"
+            disabled={!selectedMessages.length} onPress={openMemory} />
+        </View>
+      </View> : <TouchableOpacity
+        style={styles.chatInputContainer}
+        onPress={openComposer}
+        activeOpacity={0.85}
+        accessibilityLabel="发条弹幕聊天互动吧..."
+      >
+        <View style={styles.chatInputFake}>
+          <Text 
+            style={[styles.chatInputFakeText, !chatInput.trim() && styles.placeholderText]}
+            numberOfLines={1}
+          >
+            {chatInput.trim() || '发条弹幕聊天互动吧...'}
+          </Text>
+        </View>
+        <TouchableOpacity 
+          style={[styles.sendBtn, !chatInput.trim() && styles.sendBtnDisabled]} 
+          onPress={() => {
+            if (chatInput.trim()) {
+              void handleSend();
+            } else {
+              openComposer();
+            }
+          }}
+          activeOpacity={0.7}
+          disabled={isSending}
+          accessibilityLabel="发送弹幕"
+        >
+          <Send color={chatInput.trim() ? '#fff' : 'rgba(255, 255, 255, 0.40)'} size={16} />
+        </TouchableOpacity>
+      </TouchableOpacity>}
+
+      {/* 贴键盘沉浸式输入弹窗 */}
+      <ComposerLayer
+        visible={isActive && isComposerOpen}
+        transparent={true}
+        animationType="none"
+        testID="聊天输入浮层"
+        onRequestClose={closeComposer}
+        onDismiss={() => {
+          const session = pendingDismiss.current;
+          pendingDismiss.current = null;
+          if (session !== null && mounted.current && activeRef.current && session === composerSession.current) onSentRef.current?.();
+        }}
+        onShow={focusComposer}
+      >
+        <View style={styles.modalBackdropContainer} onLayout={keyboard.onLayout}>
+          <TouchableWithoutFeedback onPress={closeComposer}>
+            <View style={StyleSheet.absoluteFill} />
+          </TouchableWithoutFeedback>
+
+          <View style={[styles.floatingInputSheet, { bottom: keyboard.visible ? keyboard.inset : keyboard.bottomInset }]}>
+            {!!errorMessage && <Text accessibilityRole="alert" style={styles.sendError}>{errorMessage}</Text>}
+            {/* 快捷弹幕胶囊横划区 */}
+            <View style={styles.quickTagsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.quickTagsList}
+                keyboardShouldPersistTaps="always"
+              >
+                {QUICK_DANMAKU_TAGS.map((tag) => (
+                  <TouchableOpacity
+                    key={tag}
+                    style={styles.quickTagBtn}
+                    onPress={() => {
+                      draftRef.current = tag;
+                      setLocalSendError(null);
+                      setChatInput(tag);
+                      focusComposer();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.quickTagBtnText}>{tag}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* 输入行 */}
+            <View style={styles.modalInputRow}>
+              <TextInput
+                ref={inputRef}
+                testID="聊天输入框"
+                style={styles.modalTextInput}
+                placeholder="发条弹幕聊天互动吧..."
+                placeholderTextColor="#777"
+                value={chatInput}
+                onChangeText={value => { draftRef.current = value; setLocalSendError(null); setChatInput(value); }}
+                onSubmitEditing={handleSend}
+                returnKeyType="send"
+                submitBehavior="submit"
+                autoCorrect={false}
+                accessibilityLabel="发条弹幕聊天互动吧..."
+                disableFullscreenUI={true}
+                keyboardAppearance="dark"
+                cursorColor="#F97316"
+                selectionColor="#F97316"
+              />
+              <TouchableOpacity
+                testID="聊天输入发送按钮"
+                style={[styles.modalSendBtn, !chatInput.trim() && styles.modalSendBtnDisabled]}
+                onPress={handleSend}
+                disabled={!chatInput.trim() || isSending}
+                activeOpacity={0.7}
+                accessibilityLabel="发送弹幕"
+              >
+                <Send color={chatInput.trim() ? '#fff' : 'rgba(255, 255, 255, 0.40)'} size={17} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </ComposerLayer>
+      {enableMemory && <AppActionSheet visible={isActive && !!messageMenu} heading="消息操作"
+        onClose={() => setMessageMenu(null)} onDismiss={() => {
+          const panel = pendingSafety.current;
+          pendingSafety.current = null;
+          if (isActive && panel) openSafetyPanel(panel);
+        }}>
+        <AppActionRow icon={ListChecks} title="多选消息" description="选择聊天片段并生成图片" testID="chat-memory-select" onPress={() => {
+          if (!messageMenu) return;
+          selectionScroll.current = 'idle';
+          setSelection({ ids: new Set([messageMenu.message.id]), skipped: new Set() });
+          setMessageMenu(null);
+        }} />
+        {!!messageMenu?.message.actorId && !messageMenu.isMe && <AppActionRow icon={ShieldAlert} title="举报或屏蔽"
+          description="查看此消息的安全选项" onPress={() => { showSafetyFor(messageMenu, true); setMessageMenu(null); }} />}
+      </AppActionSheet>}
+      {isActive && memory && <ViewingMemoryEditor source={memory} onClose={() => setMemory(null)} />}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  sendError: { color: '#f87171', fontSize: 13, lineHeight: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  chatContainer: {
+    flex: 1,
+    backgroundColor: '#0c0d12',
+  },
+  newMessages: { position: 'absolute', right: 14, bottom: 72, paddingHorizontal: 14, minHeight: 44, justifyContent: 'center', backgroundColor: '#262b36', borderRadius: 16 },
+  newMessagesText: { color: '#fb923c', fontSize: 12 },
+  chatList: {
+    flex: 1,
+  },
+  chatListContent: {
+    padding: 14,
+    paddingBottom: 20,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    color: '#777',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  emptySub: {
+    color: '#555',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  systemMessageContainer: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginVertical: 6,
+  },
+  systemMessageText: {
+    color: '#888',
+    fontSize: 11,
+  },
+  messageWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    marginBottom: 16,
+  },
+  messageWrapperMe: {
+    flexDirection: 'row-reverse',
+  },
+  messageAvatar: { width: 36, flexShrink: 0 },
+  messageContent: { maxWidth: '82%', minWidth: 0, flexShrink: 1, alignItems: 'flex-start', gap: 5 },
+  messageContentMe: { alignItems: 'flex-end' },
+  bubble: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  bubbleOther: {
+    backgroundColor: '#21242e',
+    borderTopLeftRadius: 4,
+  },
+  bubbleMe: {
+    backgroundColor: '#483021',
+    borderTopRightRadius: 4,
+  },
+  pickBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, borderWidth: 1, borderColor: colors.line },
+  pickedBubble: { borderColor: colors.chatSelection.edge },
+  check: { width: 17, height: 17, borderRadius: 9, borderWidth: 1, borderColor: colors.muted,
+    flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
+  checked: { backgroundColor: colors.accentButton.fill, borderColor: colors.accentButton.fill },
+  selectionFooter: { paddingHorizontal: 12, paddingBottom: 7, borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.line, backgroundColor: colors.surface },
+  selectionSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 8 },
+  selectionSwitchGroup: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, gap: 8 },
+  selectionSwitchLabel: { color: colors.muted, fontSize: 13, flexShrink: 1 },
+  selectionSwitch: { minWidth: 48, minHeight: 44 },
+  selectionBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
+  selectionActions: { flexDirection: 'row', alignItems: 'center' },
+  selectionCount: { color: colors.muted, fontSize: 13 },
+  senderName: {
+    color: '#a0a4b0',
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  messageText: {
+    color: '#F3F4F6',
+    fontSize: 14,
+    lineHeight: 20,
+    flexShrink: 1,
+  },
+  messageTextMe: {
+    color: '#ffead9',
+  },
+  chatInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: '#121319',
+  },
+  chatInputFake: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.35)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.10)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.05)',
+    borderRightColor: 'rgba(255, 255, 255, 0.05)',
+    justifyContent: 'center',
+  },
+  chatInputFakeText: {
+    color: '#fff',
+    fontSize: 13.5,
+  },
+  placeholderText: {
+    color: '#6B7280',
+  },
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EA580C',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+    borderWidth: 1.2,
+    borderTopColor: 'rgba(255, 255, 255, 0.45)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.45)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.15)',
+    borderRightColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  sendBtnDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderTopColor: 'rgba(255, 255, 255, 0.22)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.35)',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  modalBackdropContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  floatingInputSheet: {
+    backgroundColor: '#18181d',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 16 : 14,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  quickTagsContainer: {
+    marginBottom: 10,
+  },
+  quickTagsList: {
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  quickTagBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  quickTagBtnText: {
+    color: '#ddd',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  modalInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modalTextInput: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    color: '#fff',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#F97316',
+  },
+  modalSendBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EA580C',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.2,
+    borderTopColor: 'rgba(255, 255, 255, 0.45)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.45)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.15)',
+    borderRightColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#EA580C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalSendBtnDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderTopColor: 'rgba(255, 255, 255, 0.22)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.35)',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+});
