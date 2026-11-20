@@ -235,7 +235,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-ios:
-    runs-on: macos-26
+    runs-on: xcode-27
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') || startsWith(github.ref, 'refs/tags/ios-v') || inputs.target == 'all' || inputs.target == 'mobile' || inputs.target == 'ios'
     permissions:
       contents: write
@@ -268,10 +268,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Select Xcode 26.4.1 (Expo SDK 57)
+      - name: Select Xcode 27.2
         run: |
-          sudo xcode-select --switch /Applications/Xcode_26.4.1.app/Contents/Developer
+          sudo xcode-select --switch /Applications/Xcode_27.2.app/Contents/Developer
           xcodebuild -version
+          xcodebuild -version -sdk iphoneos SDKVersion
 
       - name: Setup EAS CLI
         uses: expo/expo-github-action@v8
@@ -308,6 +309,22 @@ jobs:
           mkdir -p release
           pnpm exec eas build --platform ios --profile production --local --non-interactive --freeze-credentials --verbose-logs --output "release/Yiqikan.${VERSION}.ipa"
           cp "release/Yiqikan.${VERSION}.ipa" "release/Yiqikan.ipa"
+
+      - name: Verify iOS SDK and scene lifecycle in IPA
+        working-directory: apps/mobile/release
+        run: |
+          set -euo pipefail
+          plist=$(mktemp)
+          trap 'rm -f "$plist"' EXIT
+          entry=$(unzip -Z -1 Yiqikan.ipa | grep -E '^Payload/[^/]+\.app/Info\.plist$')
+          unzip -p Yiqikan.ipa "$entry" > "$plist"
+          sdk=$(/usr/libexec/PlistBuddy -c 'Print :DTSDKName' "$plist")
+          echo "IPA SDK: $sdk"
+          if ! [[ "$sdk" =~ ^iphoneos([0-9]+)\. ]] || (( BASH_REMATCH[1] < 27 )); then
+            echo "The IPA must use iOS SDK 27 or later." >&2
+            exit 1
+          fi
+          /usr/libexec/PlistBuddy -c 'Print :UIApplicationSceneManifest:UISceneConfigurations:UIWindowSceneSessionRoleApplication:0:UISceneDelegateClassName' "$plist"
 
       - name: Upload iOS build artifact
         uses: actions/upload-artifact@v4
